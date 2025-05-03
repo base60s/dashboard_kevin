@@ -1,0 +1,742 @@
+"use client"
+
+import { useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Pencil, Trash, Upload, Save, Calendar } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import Image from "next/image"
+import { Textarea } from "@/components/ui/textarea"
+import useAdminDataStore from '@/lib/adminDataStore'
+
+interface ImageItem {
+  id: string
+  src: string
+  alt: string
+  date: string
+  area: string
+  description: string
+  featured: boolean
+}
+
+export default function ImageManagement() {
+  const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(false)
+  const [editingImage, setEditingImage] = useState<ImageItem | null>(null)
+  const [selectedImages, setSelectedImages] = useState<string[]>([])
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+
+  const setProgressImages = useAdminDataStore((state) => state.setProgressImages)
+
+  const [images, setImages] = useState<ImageItem[]>([
+    {
+      id: "1",
+      src: "/placeholder.svg?key=2ht4u",
+      alt: "Progreso de construcción - Cimentación",
+      date: "15/01/2025",
+      area: "Cimentación",
+      description: "Avance en la cimentación del edificio, fase inicial.",
+      featured: true,
+    },
+    {
+      id: "2",
+      src: "/building-under-construction.png",
+      alt: "Progreso de construcción - Estructura",
+      date: "28/02/2025",
+      area: "Estructura",
+      description: "Estructura principal del edificio en construcción.",
+      featured: true,
+    },
+    {
+      id: "3",
+      src: "/building-facade-installation.png",
+      alt: "Progreso de construcción - Fachada",
+      date: "15/03/2025",
+      area: "Fachada",
+      description: "Instalación de los paneles de la fachada principal.",
+      featured: false,
+    },
+    {
+      id: "4",
+      src: "/placeholder.svg?key=riuul",
+      alt: "Progreso de construcción - Interior",
+      date: "10/04/2025",
+      area: "Interior",
+      description: "Trabajos de acabado interior en la planta baja.",
+      featured: false,
+    },
+  ])
+
+  const [newImage, setNewImage] = useState<Omit<ImageItem, "id">>({
+    src: "",
+    alt: "",
+    date: new Date().toISOString().split("T")[0],
+    area: "Cimentación",
+    description: "",
+    featured: false,
+  })
+
+  const updateGlobalImages = (updatedImages: ImageItem[]) => {
+    setProgressImages(updatedImages)
+  }
+
+  const handleAddImage = () => {
+    const newImageWithId = {
+      ...newImage,
+      id: Date.now().toString(),
+      src: "/placeholder.svg?key=" + Math.random().toString(36).substring(2, 7),
+    }
+
+    const updatedImages = [...images, newImageWithId]
+    setImages(updatedImages)
+    updateGlobalImages(updatedImages)
+
+    setNewImage({
+      src: "",
+      alt: "",
+      date: new Date().toISOString().split("T")[0],
+      area: "Cimentación",
+      description: "",
+      featured: false,
+    })
+    setIsAddDialogOpen(false)
+    toast({
+      title: "Imagen añadida",
+      description: "La nueva imagen ha sido añadida correctamente.",
+    })
+  }
+
+  const handleUpdateImage = () => {
+    if (!editingImage) return
+
+    const updatedImages = images.map((img) => (img.id === editingImage.id ? editingImage : img))
+    setImages(updatedImages)
+    updateGlobalImages(updatedImages)
+
+    setEditingImage(null)
+    toast({
+      title: "Imagen actualizada",
+      description: "La imagen ha sido actualizada correctamente.",
+    })
+  }
+
+  const handleDeleteImage = (id: string) => {
+    const updatedImages = images.filter((img) => img.id !== id)
+    setImages(updatedImages)
+    updateGlobalImages(updatedImages)
+
+    toast({
+      title: "Imagen eliminada",
+      description: "La imagen ha sido eliminada correctamente.",
+    })
+  }
+
+  const handleDeleteSelected = () => {
+    const updatedImages = images.filter((img) => !selectedImages.includes(img.id))
+    setImages(updatedImages)
+    updateGlobalImages(updatedImages)
+
+    setSelectedImages([])
+    toast({
+      title: "Imágenes eliminadas",
+      description: `${selectedImages.length} imágenes han sido eliminadas correctamente.`,
+    })
+  }
+
+  const handleToggleFeatured = (id: string) => {
+    const updatedImages = images.map((img) => (img.id === id ? { ...img, featured: !img.featured } : img))
+    setImages(updatedImages)
+    updateGlobalImages(updatedImages)
+
+    toast({
+      title: "Estado actualizado",
+      description: "El estado destacado de la imagen ha sido actualizado.",
+    })
+  }
+
+  const handleSelectImage = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedImages([...selectedImages, id])
+    } else {
+      setSelectedImages(selectedImages.filter((imgId) => imgId !== id))
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedImages(images.map((img) => img.id))
+    } else {
+      setSelectedImages([])
+    }
+  }
+
+  const handleSaveAllChanges = () => {
+    setIsLoading(true)
+    updateGlobalImages(images)
+
+    setTimeout(() => {
+      setIsLoading(false)
+      toast({
+        title: "Cambios guardados",
+        description: "Todos los cambios han sido guardados correctamente.",
+      })
+    }, 1000)
+  }
+
+  const formatDate = (dateString: string) => {
+    if (dateString.includes("-")) {
+      const [year, month, day] = dateString.split("-")
+      return `${day}/${month}/${year}`
+    }
+    return dateString
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Gestión de Imágenes</h2>
+        <div className="flex gap-2">
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Upload className="h-4 w-4" />
+                Subir Imagen
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Subir Nueva Imagen</DialogTitle>
+                <DialogDescription>Sube una nueva imagen y completa la información relacionada.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="image-file">Archivo de Imagen</Label>
+                  <Input id="image-file" type="file" accept="image/*" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="image-alt">Texto Alternativo</Label>
+                  <Input
+                    id="image-alt"
+                    value={newImage.alt}
+                    onChange={(e) => setNewImage({ ...newImage, alt: e.target.value })}
+                    placeholder="Descripción breve de la imagen"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="image-date">Fecha</Label>
+                    <Input
+                      id="image-date"
+                      type="date"
+                      value={newImage.date}
+                      onChange={(e) => setNewImage({ ...newImage, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="image-area">Área</Label>
+                    <Select value={newImage.area} onValueChange={(value) => setNewImage({ ...newImage, area: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar área" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cimentación">Cimentación</SelectItem>
+                        <SelectItem value="Estructura">Estructura</SelectItem>
+                        <SelectItem value="Fachada">Fachada</SelectItem>
+                        <SelectItem value="Interior">Interior</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="image-description">Descripción</Label>
+                  <Textarea
+                    id="image-description"
+                    value={newImage.description}
+                    onChange={(e) => setNewImage({ ...newImage, description: e.target.value })}
+                    placeholder="Descripción detallada de la imagen"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="image-featured"
+                    checked={newImage.featured}
+                    onCheckedChange={(checked) => setNewImage({ ...newImage, featured: checked as boolean })}
+                  />
+                  <Label htmlFor="image-featured">Destacar en Galería</Label>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleAddImage}>Subir Imagen</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          {selectedImages.length > 0 && (
+            <Button variant="destructive" onClick={handleDeleteSelected} className="gap-2">
+              <Trash className="h-4 w-4" />
+              Eliminar Seleccionadas ({selectedImages.length})
+            </Button>
+          )}
+          <Button onClick={handleSaveAllChanges} disabled={isLoading} className="gap-2">
+            <Save className="h-4 w-4" />
+            Guardar Cambios
+          </Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="grid">
+        <TabsList>
+          <TabsTrigger value="grid">Vista de Cuadrícula</TabsTrigger>
+          <TabsTrigger value="list">Vista de Lista</TabsTrigger>
+          <TabsTrigger value="settings">Configuración</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="grid" className="space-y-4 mt-4">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex gap-2">
+              <Select defaultValue="all">
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar por área" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las áreas</SelectItem>
+                  <SelectItem value="Cimentación">Cimentación</SelectItem>
+                  <SelectItem value="Estructura">Estructura</SelectItem>
+                  <SelectItem value="Fachada">Fachada</SelectItem>
+                  <SelectItem value="Interior">Interior</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select defaultValue="newest">
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Más recientes</SelectItem>
+                  <SelectItem value="oldest">Más antiguas</SelectItem>
+                  <SelectItem value="area">Área</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="select-all-grid"
+                checked={selectedImages.length === images.length}
+                onCheckedChange={handleSelectAll}
+              />
+              <Label htmlFor="select-all-grid">Seleccionar todas</Label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {images.map((image) => (
+              <Card
+                key={image.id}
+                className={`overflow-hidden ${selectedImages.includes(image.id) ? "ring-2 ring-primary" : ""}`}
+              >
+                <CardContent className="p-0">
+                  <div className="relative">
+                    <div className="absolute top-2 left-2 z-10">
+                      <Checkbox
+                        checked={selectedImages.includes(image.id)}
+                        onCheckedChange={(checked) => handleSelectImage(image.id, checked as boolean)}
+                        className="bg-white/80"
+                      />
+                    </div>
+                    {image.featured && <Badge className="absolute top-2 right-2 z-10 bg-yellow-500">Destacada</Badge>}
+                    <Image
+                      src={image.src || "/placeholder.svg"}
+                      alt={image.alt}
+                      width={400}
+                      height={300}
+                      className="w-full h-48 object-cover"
+                    />
+                  </div>
+                  <div className="p-3">
+                    <div className="flex justify-between items-start">
+                      <Badge variant="outline" className="mb-2">
+                        {image.area}
+                      </Badge>
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        {formatDate(image.date)}
+                      </div>
+                    </div>
+                    <p className="text-sm line-clamp-2">{image.description || image.alt}</p>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between p-3 pt-0">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" onClick={() => setEditingImage(image)}>
+                        <Pencil className="h-4 w-4 mr-1" />
+                        Editar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Editar Imagen</DialogTitle>
+                        <DialogDescription>Modifica los detalles de la imagen.</DialogDescription>
+                      </DialogHeader>
+                      {editingImage && (
+                        <div className="grid gap-4 py-4">
+                          <div className="relative h-48 mb-2">
+                            <Image
+                              src={editingImage.src || "/placeholder.svg"}
+                              alt={editingImage.alt}
+                              fill
+                              className="object-contain rounded-md"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-image-alt">Texto Alternativo</Label>
+                            <Input
+                              id="edit-image-alt"
+                              value={editingImage.alt}
+                              onChange={(e) => setEditingImage({ ...editingImage, alt: e.target.value })}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-image-date">Fecha</Label>
+                              <Input
+                                id="edit-image-date"
+                                type="date"
+                                value={editingImage.date.split("/").reverse().join("-")}
+                                onChange={(e) => setEditingImage({ ...editingImage, date: formatDate(e.target.value) })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-image-area">Área</Label>
+                              <Select
+                                value={editingImage.area}
+                                onValueChange={(value) => setEditingImage({ ...editingImage, area: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar área" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Cimentación">Cimentación</SelectItem>
+                                  <SelectItem value="Estructura">Estructura</SelectItem>
+                                  <SelectItem value="Fachada">Fachada</SelectItem>
+                                  <SelectItem value="Interior">Interior</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-image-description">Descripción</Label>
+                            <Textarea
+                              id="edit-image-description"
+                              value={editingImage.description}
+                              onChange={(e) => setEditingImage({ ...editingImage, description: e.target.value })}
+                            />
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="edit-image-featured"
+                              checked={editingImage.featured}
+                              onCheckedChange={(checked) =>
+                                setEditingImage({ ...editingImage, featured: checked as boolean })
+                              }
+                            />
+                            <Label htmlFor="edit-image-featured">Destacar en Galería</Label>
+                          </div>
+                        </div>
+                      )}
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingImage(null)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleUpdateImage}>Guardar Cambios</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  <Button variant="ghost" size="sm" onClick={() => handleDeleteImage(image.id)}>
+                    <Trash className="h-4 w-4 mr-1" />
+                    Eliminar
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="list" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lista de Imágenes</CardTitle>
+              <CardDescription>Gestiona todas las imágenes del proyecto.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        id="select-all-list"
+                        checked={selectedImages.length === images.length}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead>Vista Previa</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead>Área</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Destacada</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {images.map((image) => (
+                    <TableRow key={image.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedImages.includes(image.id)}
+                          onCheckedChange={(checked) => handleSelectImage(image.id, checked as boolean)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="relative h-16 w-16">
+                          <Image
+                            src={image.src || "/placeholder.svg"}
+                            alt={image.alt}
+                            fill
+                            className="object-cover rounded-md"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{image.alt}</div>
+                        <div className="text-sm text-muted-foreground line-clamp-1">{image.description}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{image.area}</Badge>
+                      </TableCell>
+                      <TableCell>{image.date}</TableCell>
+                      <TableCell>
+                        <Checkbox checked={image.featured} onCheckedChange={() => handleToggleFeatured(image.id)} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => setEditingImage(image)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Editar Imagen</DialogTitle>
+                                <DialogDescription>Modifica los detalles de la imagen.</DialogDescription>
+                              </DialogHeader>
+                              {editingImage && (
+                                <div className="grid gap-4 py-4">
+                                  <div className="relative h-48 mb-2">
+                                    <Image
+                                      src={editingImage.src || "/placeholder.svg"}
+                                      alt={editingImage.alt}
+                                      fill
+                                      className="object-contain rounded-md"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-image-alt-list">Texto Alternativo</Label>
+                                    <Input
+                                      id="edit-image-alt-list"
+                                      value={editingImage.alt}
+                                      onChange={(e) => setEditingImage({ ...editingImage, alt: e.target.value })}
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label htmlFor="edit-image-date-list">Fecha</Label>
+                                      <Input
+                                        id="edit-image-date-list"
+                                        type="date"
+                                        value={editingImage.date.split("/").reverse().join("-")}
+                                        onChange={(e) =>
+                                          setEditingImage({ ...editingImage, date: formatDate(e.target.value) })
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor="edit-image-area-list">Área</Label>
+                                      <Select
+                                        value={editingImage.area}
+                                        onValueChange={(value) => setEditingImage({ ...editingImage, area: value })}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Seleccionar área" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Cimentación">Cimentación</SelectItem>
+                                          <SelectItem value="Estructura">Estructura</SelectItem>
+                                          <SelectItem value="Fachada">Fachada</SelectItem>
+                                          <SelectItem value="Interior">Interior</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-image-description-list">Descripción</Label>
+                                    <Textarea
+                                      id="edit-image-description-list"
+                                      value={editingImage.description}
+                                      onChange={(e) =>
+                                        setEditingImage({ ...editingImage, description: e.target.value })
+                                      }
+                                    />
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id="edit-image-featured-list"
+                                      checked={editingImage.featured}
+                                      onCheckedChange={(checked) =>
+                                        setEditingImage({ ...editingImage, featured: checked as boolean })
+                                      }
+                                    />
+                                    <Label htmlFor="edit-image-featured-list">Destacar en Galería</Label>
+                                  </div>
+                                </div>
+                              )}
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setEditingImage(null)}>
+                                  Cancelar
+                                </Button>
+                                <Button onClick={handleUpdateImage}>Guardar Cambios</Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteImage(image.id)}>
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuración de Galería</CardTitle>
+              <CardDescription>Configura las opciones para la galería de imágenes.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="gallery-layout">Diseño de Galería</Label>
+                <Select defaultValue="grid">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar diseño" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="grid">Cuadrícula</SelectItem>
+                    <SelectItem value="masonry">Mosaico</SelectItem>
+                    <SelectItem value="carousel">Carrusel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="images-per-page">Imágenes por Página</Label>
+                <Select defaultValue="12">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar cantidad" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="8">8 imágenes</SelectItem>
+                    <SelectItem value="12">12 imágenes</SelectItem>
+                    <SelectItem value="16">16 imágenes</SelectItem>
+                    <SelectItem value="24">24 imágenes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="default-sort">Ordenación Predeterminada</Label>
+                <Select defaultValue="newest">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar orden" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Más recientes primero</SelectItem>
+                    <SelectItem value="oldest">Más antiguas primero</SelectItem>
+                    <SelectItem value="area">Por área</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="image-quality">Calidad de Imagen</Label>
+                <Select defaultValue="high">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar calidad" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baja (carga rápida)</SelectItem>
+                    <SelectItem value="medium">Media</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="thumbnail-size">Tamaño de Miniaturas</Label>
+                <Select defaultValue="medium">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar tamaño" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Pequeño</SelectItem>
+                    <SelectItem value="medium">Mediano</SelectItem>
+                    <SelectItem value="large">Grande</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="enable-lightbox">Habilitar Lightbox</Label>
+                  <Checkbox id="enable-lightbox" defaultChecked />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Permite ver las imágenes en pantalla completa al hacer clic en ellas.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="enable-download">Permitir Descarga</Label>
+                  <Checkbox id="enable-download" defaultChecked />
+                </div>
+                <p className="text-sm text-muted-foreground">Permite a los usuarios descargar las imágenes.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
