@@ -30,10 +30,10 @@ export default function Dashboard() {
   
   const isLoading = lastUpdated === null
 
-  const progressKpi = kpiSettings.find((k: KPI) => k.name === "Progreso de Obra" && k.visible)
-  const daysKpi = kpiSettings.find((k: KPI) => k.name === "Días Pendientes" && k.visible)
-  const unitsSoldKpi = kpiSettings.find((k: KPI) => k.name === "Unidades Vendidas" && k.visible)
-  const durationKpi = kpiSettings.find((k: KPI) => k.name === "Duración Total" && k.visible)
+  const progressKpi = (kpiSettings || []).find((k: KPI) => k.name === "Progreso de Obra" && k.visible)
+  const daysKpi = (kpiSettings || []).find((k: KPI) => k.name === "Días Pendientes" && k.visible)
+  const unitsSoldKpi = (kpiSettings || []).find((k: KPI) => k.name === "Unidades Vendidas" && k.visible)
+  const durationKpi = (kpiSettings || []).find((k: KPI) => k.name === "Duración Total" && k.visible)
 
   const projectProgress = progressKpi?.value ?? 0
   const pendingDays = daysKpi?.value ?? 0
