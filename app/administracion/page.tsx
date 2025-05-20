@@ -16,8 +16,8 @@ export default function AdministracionPage() {
 
   return (
     <>
-      <PageHeader title="Panel de Administración - Edificio Corporativo Zenith">
-        <div className="mt-4">
+      <PageHeader title="">
+        <div className="mt-4 bg-background border-b border-border text-foreground">
           <Tabs defaultValue="general" value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
               <TabsTrigger value="general" className="gap-2">

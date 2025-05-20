@@ -41,6 +41,7 @@ export default function ImageManagement() {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [editingImage, setEditingImage] = useState<ImageItem | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -74,16 +75,24 @@ export default function ImageManagement() {
       console.error('Error fetching images from storage:', error);
       return [];
     }
-    return (data || []).map((file) => ({
-      id: file.id || file.name,
-      src: supabase.storage.from('progress-images').getPublicUrl(file.name).data.publicUrl,
-      fileKey: file.name,
-      alt: file.name,
-      date: new Date().toISOString().split('T')[0],
-      area: 'Cimentación',
-      description: '',
-      featured: false,
-    }));
+    // Fetch metadata from Supabase
+    const { data: metaData, error: metaError } = await supabase.from('progress_images_meta').select('*');
+    if (metaError) {
+      console.error('Error fetching image metadata:', metaError);
+    }
+    return (data || []).map((file) => {
+      const meta = (metaData || []).find((m) => m.id === file.name) || {};
+      return {
+        id: file.id || file.name,
+        src: supabase.storage.from('progress-images').getPublicUrl(file.name).data.publicUrl,
+        fileKey: file.name,
+        alt: meta.alt || file.name,
+        date: meta.date || new Date().toISOString().split('T')[0],
+        area: meta.area || 'Cimentación',
+        description: meta.description || '',
+        featured: meta.featured || false,
+      };
+    });
   };
 
   const handleAddImage = async () => {
@@ -152,15 +161,31 @@ export default function ImageManagement() {
 
   const handleUpdateImage = async () => {
     if (!editingImage) return;
-    const updatedImages = images.map((img) => (img.id === editingImage.id ? editingImage : img));
-    setImages(updatedImages);
-    updateGlobalImages(updatedImages);
-    setEditingImage(null);
-    toast({
-      title: "Imagen actualizada",
-      description: "La imagen ha sido actualizada correctamente.",
-    });
-    await fetchAndSetImages();
+    setIsLoading(true);
+    try {
+      // Upsert metadata to Supabase
+      await supabase.from('progress_images_meta').upsert({
+        id: editingImage.fileKey,
+        alt: editingImage.alt,
+        date: editingImage.date,
+        area: editingImage.area,
+        description: editingImage.description,
+        featured: editingImage.featured,
+      });
+      const updatedImages = images.map((img) => (img.id === editingImage.id ? editingImage : img));
+      setImages(updatedImages);
+      updateGlobalImages(updatedImages);
+      setEditingImage(null);
+      toast({
+        title: "Imagen actualizada",
+        description: "La imagen ha sido actualizada correctamente.",
+      });
+      await fetchAndSetImages();
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo actualizar la imagen.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteImage = async (id: string) => {
@@ -244,15 +269,28 @@ export default function ImageManagement() {
 
   const handleSaveAllChanges = async () => {
     setIsLoading(true);
-    updateGlobalImages(images);
-    setTimeout(async () => {
-      setIsLoading(false);
+    try {
+      // Upsert all metadata to Supabase
+      const upserts = images.map(img => ({
+        id: img.fileKey,
+        alt: img.alt,
+        date: img.date,
+        area: img.area,
+        description: img.description,
+        featured: img.featured,
+      }));
+      await supabase.from('progress_images_meta').upsert(upserts);
+      updateGlobalImages(images);
       toast({
         title: "Cambios guardados",
         description: "Todos los cambios han sido guardados correctamente.",
       });
       await fetchAndSetImages();
-    }, 1000);
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudieron guardar los cambios.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -449,14 +487,12 @@ export default function ImageManagement() {
                     <p className="text-sm line-clamp-2">{image.description || image.alt}</p>
                   </div>
                 </CardContent>
-                <CardFooter className="flex justify-between p-3 pt-0">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="ghost" size="sm" onClick={() => setEditingImage(image)}>
-                        <Pencil className="h-4 w-4 mr-1" />
-                        Editar
-                      </Button>
-                    </DialogTrigger>
+                <CardFooter className="flex items-center space-x-2 p-4 bg-background border-t border-border text-foreground">
+                  <Button variant="ghost" size="sm" onClick={() => { setEditingImage(image); setIsEditDialogOpen(true); }}>
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Editar
+                  </Button>
+                  <Dialog open={isEditDialogOpen && editingImage?.id === image.id} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingImage(null); }}>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Editar Imagen</DialogTitle>
@@ -520,19 +556,19 @@ export default function ImageManagement() {
                             <Checkbox
                               id="edit-image-featured"
                               checked={editingImage.featured}
-                              onCheckedChange={(checked) =>
-                                setEditingImage({ ...editingImage, featured: checked as boolean })
-                              }
+                              onCheckedChange={(checked) => setEditingImage({ ...editingImage, featured: checked as boolean })}
                             />
                             <Label htmlFor="edit-image-featured">Destacar en Galería</Label>
                           </div>
                         </div>
                       )}
                       <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditingImage(null)}>
+                        <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); setEditingImage(null); }}>
                           Cancelar
                         </Button>
-                        <Button onClick={async () => await handleUpdateImage()}>Guardar Cambios</Button>
+                        <Button onClick={async () => { await handleUpdateImage(); setIsEditDialogOpen(false); setEditingImage(null); }}>
+                          Guardar Cambios
+                        </Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
@@ -603,95 +639,9 @@ export default function ImageManagement() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => setEditingImage(image)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Editar Imagen</DialogTitle>
-                                <DialogDescription>Modifica los detalles de la imagen.</DialogDescription>
-                              </DialogHeader>
-                              {editingImage && (
-                                <div className="grid gap-4 py-4">
-                                  <div className="relative h-48 mb-2">
-                                    <Image
-                                      src={(editingImage.src ? editingImage.src + `?t=${Date.now()}` : "/placeholder.svg")}
-                                      alt={editingImage.alt}
-                                      fill
-                                      className="object-contain rounded-md"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="edit-image-alt-list">Texto Alternativo</Label>
-                                    <Input
-                                      id="edit-image-alt-list"
-                                      value={editingImage.alt}
-                                      onChange={(e) => setEditingImage({ ...editingImage, alt: e.target.value })}
-                                    />
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                      <Label htmlFor="edit-image-date-list">Fecha</Label>
-                                      <Input
-                                        id="edit-image-date-list"
-                                        type="date"
-                                        value={editingImage.date.split("/").reverse().join("-")}
-                                        onChange={(e) =>
-                                          setEditingImage({ ...editingImage, date: formatDate(e.target.value) })
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label htmlFor="edit-image-area-list">Área</Label>
-                                      <Select
-                                        value={editingImage.area}
-                                        onValueChange={(value) => setEditingImage({ ...editingImage, area: value })}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Seleccionar área" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="Cimentación">Cimentación</SelectItem>
-                                          <SelectItem value="Estructura">Estructura</SelectItem>
-                                          <SelectItem value="Fachada">Fachada</SelectItem>
-                                          <SelectItem value="Interior">Interior</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="edit-image-description-list">Descripción</Label>
-                                    <Textarea
-                                      id="edit-image-description-list"
-                                      value={editingImage.description}
-                                      onChange={(e) =>
-                                        setEditingImage({ ...editingImage, description: e.target.value })
-                                      }
-                                    />
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id="edit-image-featured-list"
-                                      checked={editingImage.featured}
-                                      onCheckedChange={(checked) =>
-                                        setEditingImage({ ...editingImage, featured: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor="edit-image-featured-list">Destacar en Galería</Label>
-                                  </div>
-                                </div>
-                              )}
-                              <DialogFooter>
-                                <Button variant="outline" onClick={() => setEditingImage(null)}>
-                                  Cancelar
-                                </Button>
-                                <Button onClick={async () => await handleUpdateImage()}>Guardar Cambios</Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
+                          <Button variant="ghost" size="icon" onClick={() => { setEditingImage(image); setIsEditDialogOpen(true); }}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={async () => await handleDeleteImage(image.id)}>
                             <Trash className="h-4 w-4" />
                           </Button>

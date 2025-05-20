@@ -42,7 +42,7 @@ export default function UnidadesPage() {
 
   return (
     <>
-      <PageHeader title="Unidades - Edificio Corporativo Zenith">
+      <PageHeader title="">
         <div className="mt-4 flex justify-between items-center">
           <div className="flex gap-2">
             <div className="relative">
@@ -107,7 +107,6 @@ export default function UnidadesPage() {
         <Tabs defaultValue="tabla">
           <TabsList className="mb-4">
             <TabsTrigger value="tabla">Vista de Tabla</TabsTrigger>
-            <TabsTrigger value="tarjetas">Vista de Tarjetas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="tabla">
@@ -158,59 +157,6 @@ export default function UnidadesPage() {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="tarjetas">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredUnidades.map((unidad: Unit) => (
-                <Card key={unidad.id} className="overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="relative h-48">
-                      <Image
-                        src={unidad.imagen || "/placeholder.svg"}
-                        alt={`Unidad ${unidad.numero}`}
-                        fill
-                        className="object-cover"
-                      />
-                      <Badge
-                        variant="outline"
-                        className={`absolute top-2 right-2 ${
-                          unidad.estado === "Vendida"
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : unidad.estado === "Reservada"
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : "bg-blue-50 text-blue-700 border-blue-200"
-                        }`}
-                      >
-                        {unidad.estado}
-                      </Badge>
-                    </div>
-                    <div className="p-4">
-                      <h3 className="text-lg font-semibold">Unidad {unidad.numero}</h3>
-                      <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Tipo:</span> {unidad.tipo}
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Área:</span> {unidad.area} m²
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Planta:</span> {unidad.planta}
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Precio:</span> {formatCurrency(unidad.precio)}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex justify-between">
-                    <Button variant="outline" size="sm" onClick={() => setSelectedUnit(unidad)}>
-                      Ver detalles
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
           </TabsContent>
         </Tabs>
 

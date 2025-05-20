@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,9 +24,10 @@ import { Textarea } from "@/components/ui/textarea"
 import Image from "next/image"
 import { Switch } from "@/components/ui/switch"
 import useAdminDataStore from '@/lib/adminDataStore'
+import { supabase } from '@/lib/supabase'
 
 export interface Unit {
-  id: number
+  id: string
   numero: string
   tipo: string
   area: number
@@ -35,11 +36,14 @@ export interface Unit {
   planta: number
   dormitorios?: number
   baños?: number
-  imagen: string
   descripcion?: string
   caracteristicas?: string[]
   fechaVenta?: string
   cliente?: string
+}
+
+function isValidUUID(uuid: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 }
 
 export default function UnitManagement() {
@@ -53,70 +57,65 @@ export default function UnitManagement() {
 
   const [unidades, setUnidades] = useState<Unit[]>([
     {
-      id: 1,
+      id: "1",
       numero: "A-101",
       tipo: "Oficina",
       area: 120,
       precio: 450000,
       estado: "Vendida",
       planta: 1,
-      imagen: "/modern-office.png",
       descripcion: "Oficina amplia con vistas a la ciudad",
       caracteristicas: ["Aire acondicionado", "Fibra óptica", "Suelo técnico"],
       fechaVenta: "15/01/2025",
       cliente: "Empresa ABC S.L.",
     },
     {
-      id: 2,
+      id: "2",
       numero: "A-102",
       tipo: "Oficina",
       area: 150,
       precio: 560000,
       estado: "Vendida",
       planta: 1,
-      imagen: "/placeholder.svg?key=xb55m",
       descripcion: "Oficina de esquina con doble orientación",
       caracteristicas: ["Aire acondicionado", "Fibra óptica", "Suelo técnico", "Sala de reuniones"],
       fechaVenta: "28/02/2025",
       cliente: "Consultora XYZ",
     },
     {
-      id: 3,
+      id: "3",
       numero: "B-201",
       tipo: "Oficina",
       area: 200,
       precio: 750000,
       estado: "Vendida",
       planta: 2,
-      imagen: "/placeholder.svg?key=uyi9g",
       descripcion: "Oficina premium con terraza privada",
       caracteristicas: ["Aire acondicionado", "Fibra óptica", "Suelo técnico", "Terraza", "Domótica"],
       fechaVenta: "10/03/2025",
       cliente: "Inversiones DEF S.A.",
     },
     {
-      id: 4,
+      id: "4",
       numero: "B-202",
       tipo: "Oficina",
       area: 180,
       precio: 680000,
       estado: "Vendida",
       planta: 2,
-      imagen: "/placeholder.svg?key=pyf9w",
       descripcion: "Oficina con distribución diáfana",
       caracteristicas: ["Aire acondicionado", "Fibra óptica", "Suelo técnico", "Espacio diáfano"],
       fechaVenta: "05/04/2025",
       cliente: "Tecnología GHI S.L.",
     },
     {
-      id: 5,
+      id: "5",
       numero: "C-301",
       tipo: "Oficina",
       area: 250,
       precio: 950000,
       estado: "Disponible",
       planta: 3,
-      imagen: "/placeholder.svg?key=n6po5",
       descripcion: "Oficina de lujo con vistas panorámicas",
       caracteristicas: [
         "Aire acondicionado",
@@ -127,14 +126,13 @@ export default function UnitManagement() {
       ],
     },
     {
-      id: 6,
+      id: "6",
       numero: "C-302",
       tipo: "Oficina",
       area: 220,
       precio: 830000,
       estado: "Disponible",
       planta: 3,
-      imagen: "/placeholder.svg?key=b3jg5",
       descripcion: "Oficina premium con acabados de alta calidad",
       caracteristicas: ["Aire acondicionado", "Fibra óptica", "Suelo técnico", "Acabados premium"],
     },
@@ -147,38 +145,48 @@ export default function UnitManagement() {
     precio: 0,
     estado: "Disponible",
     planta: 1,
-    imagen: "/placeholder.svg?key=gw9r6",
     descripcion: "",
     caracteristicas: [],
   })
 
-  const handleAddUnit = () => {
-    const newUnitWithId = {
-      ...newUnit,
-      id: Math.max(0, ...unidades.map((u) => u.id)) + 1,
+  const fetchAndSyncUnits = async () => {
+    const { data, error } = await supabase.from('unidades').select('*');
+    if (!error) {
+      setUnidades(data || []);
+      setUnitData(data || []);
     }
+  };
 
-    const updatedUnits = [...unidades, newUnitWithId]
-    setUnidades(updatedUnits)
-    setUnitData(updatedUnits)
-
-    setNewUnit({
-      numero: "",
-      tipo: "Oficina",
-      area: 0,
-      precio: 0,
-      estado: "Disponible",
-      planta: 1,
-      imagen: "/placeholder.svg?key=hrtq9",
-      descripcion: "",
-      caracteristicas: [],
-    })
-    setIsAddDialogOpen(false)
-    toast({
-      title: "Unidad añadida",
-      description: "La nueva unidad ha sido añadida correctamente.",
-    })
-  }
+  const handleAddUnit = async () => {
+    setIsLoading(true);
+    // Basic validation
+    if (!newUnit.numero || !newUnit.tipo || !newUnit.area || !newUnit.precio || !newUnit.estado || !newUnit.planta) {
+      toast({ title: "Campos requeridos faltantes", description: "Por favor, completa todos los campos obligatorios.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
+    const { data, error } = await supabase.from('unidades').insert([{ ...newUnit }]).select();
+    console.log('Supabase insert result:', { data, error });
+    if (!error) {
+      await fetchAndSyncUnits();
+      setNewUnit({
+        numero: "",
+        tipo: "Oficina",
+        area: 0,
+        precio: 0,
+        estado: "Disponible",
+        planta: 1,
+        descripcion: "",
+        caracteristicas: [],
+      });
+      setIsAddDialogOpen(false);
+      toast({ title: "Unidad añadida", description: "La nueva unidad ha sido añadida correctamente." });
+    } else {
+      toast({ title: "Error al añadir unidad", description: error.message, variant: "destructive" });
+      alert('Error al añadir unidad: ' + error.message); // For extra visibility
+    }
+    setIsLoading(false);
+  };
 
   const openUnitEditDialog = (unit: Unit) => {
     setUnitToEdit({ ...unit })
@@ -213,35 +221,36 @@ export default function UnitManagement() {
     setUnitToEdit(prev => prev ? { ...prev, [field]: value } : null)
   }
 
-  const handleUpdateUnit = () => {
-    if (!unitToEdit) return
+  const handleUpdateUnit = async () => {
+    if (!unitToEdit) return;
+    setIsLoading(true);
+    const { id, ...updateData } = unitToEdit;
+    console.log('Updating unit:', { id, updateData });
+    const { data, error } = await supabase.from('unidades').update(updateData).eq('id', id);
+    console.log('Supabase update result:', { data, error });
+    if (!error) {
+      await fetchAndSyncUnits();
+      setIsUnitEditDialogOpen(false);
+      setUnitToEdit(null);
+      toast({ title: "Unidad actualizada", description: "La unidad ha sido actualizada correctamente." });
+    } else {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      alert('Error al actualizar unidad: ' + error.message);
+    }
+    setIsLoading(false);
+  };
 
-    const updatedUnits = unidades.map((unit) =>
-      unit.id === unitToEdit.id ? { ...unitToEdit } : unit
-    )
-
-    setUnidades(updatedUnits)
-    setUnitData(updatedUnits)
-
-    setIsUnitEditDialogOpen(false)
-    setUnitToEdit(null)
-
-    toast({
-      title: "Unidad actualizada",
-      description: "La unidad ha sido actualizada correctamente.",
-    })
-  }
-
-  const handleDeleteUnit = (id: number) => {
-    const updatedUnits = unidades.filter((unit) => unit.id !== id)
-    setUnidades(updatedUnits)
-    setUnitData(updatedUnits)
-
-    toast({
-      title: "Unidad eliminada",
-      description: "La unidad ha sido eliminada correctamente.",
-    })
-  }
+  const handleDeleteUnit = async (id: string) => {
+    setIsLoading(true);
+    const { error } = await supabase.from('unidades').delete().eq('id', id);
+    if (!error) {
+      await fetchAndSyncUnits();
+      toast({ title: "Unidad eliminada", description: "La unidad ha sido eliminada correctamente." });
+    } else {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    setIsLoading(false);
+  };
 
   const handleSaveAllChanges = () => {
     setIsLoading(true)
@@ -258,11 +267,15 @@ export default function UnitManagement() {
   }
 
   const formatCurrency = (value: number) => {
+    // Default to U$ (USD), but you can switch to AR$ (ARS) if needed
     return new Intl.NumberFormat("es-ES", {
       style: "currency",
-      currency: "EUR",
+      currency: "USD", // Change to 'ARS' for Argentine pesos
       maximumFractionDigits: 0,
-    }).format(value)
+    })
+      .format(value)
+      .replace("US$", "U$") // For U$ display
+      .replace("ARS", "AR$"); // For AR$ display
   }
 
   const handleFeatureChange = (features: string[], feature: string, checked: boolean) => {
@@ -272,6 +285,11 @@ export default function UnitManagement() {
       return features.filter((f) => f !== feature)
     }
   }
+
+  // On mount, fetch units from Supabase
+  useEffect(() => {
+    fetchAndSyncUnits();
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -335,7 +353,7 @@ export default function UnitManagement() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="unit-price">Precio (€)</Label>
+                    <Label htmlFor="unit-price">Precio (U$)</Label>
                     <Input
                       id="unit-price"
                       type="number"
@@ -372,45 +390,6 @@ export default function UnitManagement() {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="unit-image">Imagen</Label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4 flex flex-col items-center justify-center">
-                      <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Arrastra una imagen o haz clic para seleccionar
-                      </p>
-                      <Input id="unit-image" type="file" accept="image/*" className="hidden" />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => document.getElementById("unit-image")?.click()}
-                      >
-                        Seleccionar Imagen
-                      </Button>
-                    </div>
-                  </div>
-
-                  {newUnit.estado === "Vendida" && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="unit-sale-date">Fecha de Venta</Label>
-                        <Input
-                          id="unit-sale-date"
-                          type="date"
-                          onChange={(e) => setNewUnit({ ...newUnit, fechaVenta: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="unit-client">Cliente</Label>
-                        <Input
-                          id="unit-client"
-                          placeholder="Nombre del cliente o empresa"
-                          onChange={(e) => setNewUnit({ ...newUnit, cliente: e.target.value })}
-                        />
-                      </div>
-                    </>
-                  )}
-
                   <div className="space-y-2">
                     <Label>Características</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
@@ -482,7 +461,9 @@ export default function UnitManagement() {
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleAddUnit}>Añadir Unidad</Button>
+                <Button onClick={handleAddUnit} disabled={isLoading || !newUnit.numero || !newUnit.tipo || !newUnit.area || !newUnit.precio || !newUnit.estado || !newUnit.planta}>
+                  {isLoading ? 'Guardando...' : 'Añadir Unidad'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -496,7 +477,6 @@ export default function UnitManagement() {
       <Tabs defaultValue="list">
         <TabsList>
           <TabsTrigger value="list">Lista de Unidades</TabsTrigger>
-          <TabsTrigger value="grid">Vista de Tarjetas</TabsTrigger>
           <TabsTrigger value="stats">Estadísticas</TabsTrigger>
           <TabsTrigger value="settings">Configuración</TabsTrigger>
         </TabsList>
@@ -558,97 +538,6 @@ export default function UnitManagement() {
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="grid" className="space-y-4 mt-4">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex gap-2">
-              <Select defaultValue="all">
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filtrar por estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="Disponible">Disponible</SelectItem>
-                  <SelectItem value="Reservada">Reservada</SelectItem>
-                  <SelectItem value="Vendida">Vendida</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select defaultValue="floor">
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Ordenar por" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="floor">Planta</SelectItem>
-                  <SelectItem value="price">Precio</SelectItem>
-                  <SelectItem value="area">Área</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {unidades.map((unidad) => (
-              <Card key={unidad.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="relative h-48">
-                    <Image
-                      src={unidad.imagen || "/placeholder.svg"}
-                      alt={`Unidad ${unidad.numero}`}
-                      fill
-                      className="object-cover"
-                    />
-                    <Badge
-                      variant="outline"
-                      className={`absolute top-2 right-2 ${
-                        unidad.estado === "Vendida"
-                          ? "bg-green-50 text-green-700 border-green-200"
-                          : unidad.estado === "Reservada"
-                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-blue-50 text-blue-700 border-blue-200"
-                      }`}
-                    >
-                      {unidad.estado}
-                    </Badge>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold">Unidad {unidad.numero}</h3>
-                    <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Tipo:</span> {unidad.tipo}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Área:</span> {unidad.area} m²
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Planta:</span> {unidad.planta}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Precio:</span> {formatCurrency(unidad.precio)}
-                      </div>
-                    </div>
-                    {unidad.descripcion && (
-                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{unidad.descripcion}</p>
-                    )}
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-between p-4 pt-0">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="ghost" size="sm" onClick={() => openUnitEditDialog(unidad)}>
-                        <Pencil className="h-4 w-4 mr-1" />
-                        Editar
-                      </Button>
-                    </DialogTrigger>
-                  </Dialog>
-                  <Button variant="ghost" size="sm" onClick={() => handleDeleteUnit(unidad.id)}>
-                    <Trash className="h-4 w-4 mr-1" />
-                    Eliminar
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
         </TabsContent>
 
         <TabsContent value="stats" className="space-y-4 mt-4">
@@ -897,17 +786,16 @@ export default function UnitManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="price-per-sqm">Precio Base por m²</Label>
+                <Label htmlFor="price-per-sqm">Precio Base por m² (U$)</Label>
                 <div className="flex gap-2">
                   <Input id="price-per-sqm" type="number" defaultValue="3500" />
-                  <Select defaultValue="EUR">
+                  <Select defaultValue="USD">
                     <SelectTrigger className="w-[100px]">
                       <SelectValue placeholder="Moneda" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="GBP">GBP</SelectItem>
+                      <SelectItem value="USD">U$</SelectItem>
+                      <SelectItem value="ARS">AR$</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -969,7 +857,7 @@ export default function UnitManagement() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-unit-price">Precio (€)</Label>
+                  <Label htmlFor="edit-unit-price">Precio (U$)</Label>
                   <Input
                     id="edit-unit-price"
                     type="number"
@@ -1001,90 +889,74 @@ export default function UnitManagement() {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="edit-unit-image">Imagen Actual</Label>
-                    <div className="relative h-48 w-full">
-                      <Image
-                        src={unitToEdit.imagen || "/placeholder.svg"}
-                        alt={`Unidad ${unitToEdit.numero}`}
-                        fill
-                        className="object-cover rounded-md"
+              {unitToEdit.estado === "Vendida" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-unit-sale-date">Fecha de Venta</Label>
+                    <Input
+                      id="edit-unit-sale-date"
+                      type="date"
+                      value={unitToEdit.fechaVenta || ''}
+                      onChange={(e) => handleUnitEditDateChange('fechaVenta', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-unit-client">Cliente</Label>
+                    <Input
+                      id="edit-unit-client"
+                      value={unitToEdit.cliente || ""}
+                      onChange={(e) => handleUnitEditFormChange('cliente', e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-2">
+                  <Label>Características</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                     <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-feature-ac"
+                        checked={unitToEdit.caracteristicas?.includes("Aire acondicionado") || false}
+                        onCheckedChange={(checked) => handleUnitEditFeatureChange("Aire acondicionado", checked)}
                       />
+                      <Label htmlFor="edit-feature-ac">Aire acondicionado</Label>
                     </div>
-                    <div className="flex justify-between items-center mt-2">
-                      <Label htmlFor="edit-unit-image-upload">Cambiar Imagen</Label>
-                      <Input id="edit-unit-image-upload" type="file" accept="image/*" className="w-auto" />
+                     <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-feature-fiber"
+                        checked={unitToEdit.caracteristicas?.includes("Fibra óptica") || false}
+                        onCheckedChange={(checked) => handleUnitEditFeatureChange("Fibra óptica", checked)}
+                      />
+                      <Label htmlFor="edit-feature-fiber">Fibra óptica</Label>
+                    </div>
+                     <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-feature-floor"
+                        checked={unitToEdit.caracteristicas?.includes("Suelo técnico") || false}
+                        onCheckedChange={(checked) => handleUnitEditFeatureChange("Suelo técnico", checked)}
+                      />
+                      <Label htmlFor="edit-feature-floor">Suelo técnico</Label>
+                    </div>
+                     <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-feature-domotics"
+                        checked={unitToEdit.caracteristicas?.includes("Domótica") || false}
+                        onCheckedChange={(checked) => handleUnitEditFeatureChange("Domótica", checked)}
+                      />
+                      <Label htmlFor="edit-feature-domotics">Domótica</Label>
                     </div>
                   </div>
-
-                  {unitToEdit.estado === "Vendida" && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-unit-sale-date">Fecha de Venta</Label>
-                        <Input
-                          id="edit-unit-sale-date"
-                          type="date"
-                          value={unitToEdit.fechaVenta || ''}
-                          onChange={(e) => handleUnitEditDateChange('fechaVenta', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-unit-client">Cliente</Label>
-                        <Input
-                          id="edit-unit-client"
-                          value={unitToEdit.cliente || ""}
-                          onChange={(e) => handleUnitEditFormChange('cliente', e.target.value)}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  <div className="space-y-2">
-                      <Label>Características</Label>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                         <div className="flex items-center space-x-2">
-                          <Switch
-                            id="edit-feature-ac"
-                            checked={unitToEdit.caracteristicas?.includes("Aire acondicionado") || false}
-                            onCheckedChange={(checked) => handleUnitEditFeatureChange("Aire acondicionado", checked)}
-                          />
-                          <Label htmlFor="edit-feature-ac">Aire acondicionado</Label>
-                        </div>
-                         <div className="flex items-center space-x-2">
-                          <Switch
-                            id="edit-feature-fiber"
-                            checked={unitToEdit.caracteristicas?.includes("Fibra óptica") || false}
-                            onCheckedChange={(checked) => handleUnitEditFeatureChange("Fibra óptica", checked)}
-                          />
-                          <Label htmlFor="edit-feature-fiber">Fibra óptica</Label>
-                        </div>
-                         <div className="flex items-center space-x-2">
-                          <Switch
-                            id="edit-feature-floor"
-                            checked={unitToEdit.caracteristicas?.includes("Suelo técnico") || false}
-                            onCheckedChange={(checked) => handleUnitEditFeatureChange("Suelo técnico", checked)}
-                          />
-                          <Label htmlFor="edit-feature-floor">Suelo técnico</Label>
-                        </div>
-                         <div className="flex items-center space-x-2">
-                          <Switch
-                            id="edit-feature-domotics"
-                            checked={unitToEdit.caracteristicas?.includes("Domótica") || false}
-                            onCheckedChange={(checked) => handleUnitEditFeatureChange("Domótica", checked)}
-                          />
-                          <Label htmlFor="edit-feature-domotics">Domótica</Label>
-                        </div>
-                      </div>
-                    </div>
-              </div>
+                </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setIsUnitEditDialogOpen(false); setUnitToEdit(null); }}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdateUnit}>Guardar Cambios</Button>
+            <Button onClick={handleUpdateUnit} disabled={isLoading}>
+              {isLoading ? 'Guardando...' : 'Guardar Cambios'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

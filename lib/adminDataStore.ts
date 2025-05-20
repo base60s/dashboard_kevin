@@ -38,6 +38,8 @@ interface AdminDataActions {
   addProgressImage: (image: any) => void;
   setUnitData: (data: any[]) => void;
   setProgressImages: (images: any[]) => void;
+  fetchUnitData: () => Promise<void>;
+  fetchProgressImages: () => Promise<void>;
 }
 
 // Create the Zustand store
@@ -158,6 +160,59 @@ const useAdminDataStore = create<AdminDataState & AdminDataActions>((set, get) =
   })),
   setUnitData: (data) => set({ unitData: data, lastUpdated: new Date() }),
   setProgressImages: (images) => set({ progressImages: images, lastUpdated: new Date() }),
+
+  // --- Fix: Add fetchUnitData ---
+  fetchUnitData: async () => {
+    try {
+      const { data, error } = await supabase.from('unidades').select('*');
+      if (error) throw error;
+      set({ unitData: data || [], lastUpdated: new Date() });
+    } catch (error) {
+      console.error('Error fetching unidades:', error);
+    }
+  },
+
+  // --- Fix: Add fetchProgressImages ---
+  fetchProgressImages: async () => {
+    try {
+      // Fetch only the latest image
+      const { data, error } = await supabase
+        .from('progress_images_meta')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (error) {
+        console.error('Supabase error object:', error);
+        console.error('Supabase data object:', data);
+        throw error.message || JSON.stringify(error) || 'Unknown error fetching latest progress image';
+      }
+
+      // Add src property using Supabase Storage public URL
+      const imagesWithSrc = await Promise.all(
+        (data || []).map(async (img) => {
+          const { data: publicUrlData, error: urlError } = supabase.storage
+            .from('progress-images') // bucket name
+            .getPublicUrl(img.id); // use id as file key
+          if (urlError) {
+            console.error('Supabase Storage URL error:', urlError);
+          }
+          return {
+            ...img,
+            src: publicUrlData?.publicUrl || '',
+          };
+        })
+      );
+
+      set({ progressImages: imagesWithSrc, lastUpdated: new Date() });
+    } catch (error) {
+      set({ progressImages: [], lastUpdated: new Date() });
+      if (!error || (typeof error === 'object' && Object.keys(error).length === 0)) {
+        console.error('Error fetching latest progress image: (empty error object)', error);
+      } else {
+        console.error('Error fetching latest progress image:', error);
+      }
+    }
+  },
 }));
 
 export default useAdminDataStore; 

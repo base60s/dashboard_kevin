@@ -9,7 +9,7 @@ import { Upload, Filter } from "lucide-react"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { addDays } from "date-fns"
 import Image from "next/image"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -55,9 +55,9 @@ export default function ImagenesDeProgresoPage() {
               {images.map((image: ImageItem) => (
                 <Card key={image.id} className="overflow-hidden">
                   <CardContent className="p-0">
-                    <Dialog>
+                    <Dialog open={selectedImage === image.id} onOpenChange={(open) => setSelectedImage(open ? image.id : null)}>
                       <DialogTrigger asChild>
-                        <div className="cursor-pointer relative" onClick={() => setSelectedImage(image.src)}>
+                        <div className="cursor-pointer relative">
                           <Image
                             src={image.src || "/placeholder.svg"}
                             alt={image.alt}
@@ -72,6 +72,7 @@ export default function ImagenesDeProgresoPage() {
                         </div>
                       </DialogTrigger>
                       <DialogContent className="max-w-3xl">
+                        <DialogTitle className="sr-only">Imagen de Progreso</DialogTitle>
                         <div className="flex flex-col space-y-2">
                           <Image
                             src={image.src || "/placeholder.svg"}
@@ -105,23 +106,24 @@ export default function ImagenesDeProgresoPage() {
                 .map((image: ImageItem) => (
                   <Card key={image.id} className="overflow-hidden">
                     <CardContent className="p-0">
-                      <Dialog>
+                      <Dialog open={selectedImage === image.id} onOpenChange={(open) => setSelectedImage(open ? image.id : null)}>
                         <DialogTrigger asChild>
-                          <div className="cursor-pointer relative" onClick={() => setSelectedImage(image.src)}>
-                      <Image
-                        src={image.src || "/placeholder.svg"}
-                        alt={image.alt}
-                        width={600}
-                        height={400}
-                        className="w-full h-48 object-cover"
-                      />
+                          <div className="cursor-pointer relative">
+                            <Image
+                              src={image.src || "/placeholder.svg"}
+                              alt={image.alt}
+                              width={600}
+                              height={400}
+                              className="w-full h-48 object-cover"
+                            />
                             <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2 text-sm">
-                        <div className="font-medium">{image.area}</div>
+                              <div className="font-medium">{image.area}</div>
                               <div className="text-xs">{image.date}</div>
                             </div>
                           </div>
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl">
+                          <DialogTitle className="sr-only">Imagen de Progreso</DialogTitle>
                           <div className="flex flex-col space-y-2">
                             <Image
                               src={image.src || "/placeholder.svg"}
@@ -139,7 +141,7 @@ export default function ImagenesDeProgresoPage() {
                                 Descargar
                               </Button>
                             </div>
-                      </div>
+                          </div>
                         </DialogContent>
                       </Dialog>
                     </CardContent>
