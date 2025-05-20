@@ -62,8 +62,8 @@ const useAdminDataStore = create<AdminDataState & AdminDataActions>((set, get) =
 
       set({ kpiSettings: data || [], isLoadingKpis: false, lastUpdated: new Date() });
     } catch (error: any) {
-      console.error("Error fetching KPIs:", error);
-      set({ kpiError: error.message, isLoadingKpis: false });
+      console.error("Error fetching KPIs:", error, JSON.stringify(error));
+      set({ kpiError: error.message || JSON.stringify(error), isLoadingKpis: false });
     }
   },
 
@@ -93,8 +93,8 @@ const useAdminDataStore = create<AdminDataState & AdminDataActions>((set, get) =
       }
 
     } catch (error: any) {
-      console.error("Error adding KPI:", error);
-      set({ kpiError: error.message, isLoadingKpis: false });
+      console.error("Error adding KPI:", error, JSON.stringify(error));
+      set({ kpiError: error.message || JSON.stringify(error), isLoadingKpis: false });
       // Optionally re-throw or handle differently
     }
   },

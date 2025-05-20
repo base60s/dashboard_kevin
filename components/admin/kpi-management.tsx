@@ -179,6 +179,15 @@ export default function KpiManagement() {
                         onChange={(e) => setNewKpi({ ...newKpi, target: parseFloat(e.target.value) || 0 })}
                     />
                 </div>
+                <div className="space-y-2">
+                    <Label htmlFor="kpi-add-value">Valor Actual</Label>
+                    <Input
+                        id="kpi-add-value"
+                        type="number"
+                        value={newKpi.value}
+                        onChange={(e) => setNewKpi({ ...newKpi, value: parseFloat(e.target.value) || 0 })}
+                    />
+                </div>
                  <div className="space-y-2">
                      <Label htmlFor="kpi-add-format">Formato</Label>
                      <Select value={newKpi.format} onValueChange={(value) => setNewKpi({ ...newKpi, format: value }) }>
@@ -330,6 +339,15 @@ export default function KpiManagement() {
                                     onChange={(e) => handleEditFormNumberChange('target', e.target.value)}
                                 />
                             </div>
+                             <div className="space-y-2">
+                                 <Label htmlFor="kpi-edit-value">Valor Actual</Label>
+                                 <Input
+                                     id="kpi-edit-value"
+                                     type="number"
+                                     value={kpiToEdit?.value ?? ''}
+                                     onChange={(e) => handleEditFormNumberChange('value', e.target.value)}
+                                 />
+                             </div>
                              <div className="space-y-2">
                                  <Label htmlFor="kpi-edit-format">Formato</Label>
                                  <Select value={kpiToEdit?.format || ''} onValueChange={(value) => handleEditFormChange('format', value)}>

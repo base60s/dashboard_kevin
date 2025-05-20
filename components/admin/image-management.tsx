@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,10 +24,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import Image from "next/image"
 import { Textarea } from "@/components/ui/textarea"
 import useAdminDataStore from '@/lib/adminDataStore'
+import { supabase } from '@/lib/supabase'
 
 interface ImageItem {
   id: string
   src: string
+  fileKey: string
   alt: string
   date: string
   area: string
@@ -41,47 +43,11 @@ export default function ImageManagement() {
   const [editingImage, setEditingImage] = useState<ImageItem | null>(null)
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
 
   const setProgressImages = useAdminDataStore((state) => state.setProgressImages)
 
-  const [images, setImages] = useState<ImageItem[]>([
-    {
-      id: "1",
-      src: "/placeholder.svg?key=2ht4u",
-      alt: "Progreso de construcción - Cimentación",
-      date: "15/01/2025",
-      area: "Cimentación",
-      description: "Avance en la cimentación del edificio, fase inicial.",
-      featured: true,
-    },
-    {
-      id: "2",
-      src: "/building-under-construction.png",
-      alt: "Progreso de construcción - Estructura",
-      date: "28/02/2025",
-      area: "Estructura",
-      description: "Estructura principal del edificio en construcción.",
-      featured: true,
-    },
-    {
-      id: "3",
-      src: "/building-facade-installation.png",
-      alt: "Progreso de construcción - Fachada",
-      date: "15/03/2025",
-      area: "Fachada",
-      description: "Instalación de los paneles de la fachada principal.",
-      featured: false,
-    },
-    {
-      id: "4",
-      src: "/placeholder.svg?key=riuul",
-      alt: "Progreso de construcción - Interior",
-      date: "10/04/2025",
-      area: "Interior",
-      description: "Trabajos de acabado interior en la planta baja.",
-      featured: false,
-    },
-  ])
+  const [images, setImages] = useState<ImageItem[]>([])
 
   const [newImage, setNewImage] = useState<Omit<ImageItem, "id">>({
     src: "",
@@ -96,79 +62,169 @@ export default function ImageManagement() {
     setProgressImages(updatedImages)
   }
 
-  const handleAddImage = () => {
-    const newImageWithId = {
-      ...newImage,
-      id: Date.now().toString(),
-      src: "/placeholder.svg?key=" + Math.random().toString(36).substring(2, 7),
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0])
     }
-
-    const updatedImages = [...images, newImageWithId]
-    setImages(updatedImages)
-    updateGlobalImages(updatedImages)
-
-    setNewImage({
-      src: "",
-      alt: "",
-      date: new Date().toISOString().split("T")[0],
-      area: "Cimentación",
-      description: "",
-      featured: false,
-    })
-    setIsAddDialogOpen(false)
-    toast({
-      title: "Imagen añadida",
-      description: "La nueva imagen ha sido añadida correctamente.",
-    })
   }
 
-  const handleUpdateImage = () => {
-    if (!editingImage) return
+  const fetchImagesFromStorage = async () => {
+    const { data, error } = await supabase.storage.from('progress-images').list('', { limit: 100, offset: 0 });
+    if (error) {
+      console.error('Error fetching images from storage:', error);
+      return [];
+    }
+    return (data || []).map((file) => ({
+      id: file.id || file.name,
+      src: supabase.storage.from('progress-images').getPublicUrl(file.name).data.publicUrl,
+      fileKey: file.name,
+      alt: file.name,
+      date: new Date().toISOString().split('T')[0],
+      area: 'Cimentación',
+      description: '',
+      featured: false,
+    }));
+  };
 
-    const updatedImages = images.map((img) => (img.id === editingImage.id ? editingImage : img))
-    setImages(updatedImages)
-    updateGlobalImages(updatedImages)
+  const handleAddImage = async () => {
+    setIsLoading(true)
+    let imageUrl = newImage.src
+    try {
+      if (file) {
+        const filePath = `${Date.now()}-${file.name}`
+        const { error: uploadError } = await supabase.storage
+          .from('progress-images')
+          .upload(filePath, file, { upsert: true })
+        if (uploadError) {
+          console.error('Upload error:', uploadError, JSON.stringify(uploadError));
+          throw uploadError
+        }
+        const { data: publicUrlData } = supabase.storage
+          .from('progress-images')
+          .getPublicUrl(filePath)
+        imageUrl = publicUrlData.publicUrl
+      }
+      const newImageWithId = {
+        ...newImage,
+        id: Date.now().toString(),
+        src: imageUrl,
+      }
+      const updatedImages = [...images, newImageWithId]
+      setImages(updatedImages)
+      updateGlobalImages(updatedImages)
+      // Fetch images from storage and update state
+      const storageImages = await fetchImagesFromStorage()
+      if (storageImages.length > 0) {
+        setImages(storageImages)
+        updateGlobalImages(storageImages)
+      }
+      setNewImage({
+        src: '',
+        alt: '',
+        date: new Date().toISOString().split('T')[0],
+        area: 'Cimentación',
+        description: '',
+        featured: false,
+      })
+      setFile(null)
+      setIsAddDialogOpen(false)
+      toast({
+        title: 'Imagen añadida',
+        description: 'La nueva imagen ha sido añadida correctamente.',
+      })
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo subir la imagen.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-    setEditingImage(null)
+  const fetchAndSetImages = async () => {
+    const storageImages = await fetchImagesFromStorage();
+    setImages(storageImages);
+    updateGlobalImages(storageImages);
+  };
+
+  const handleUpdateImage = async () => {
+    if (!editingImage) return;
+    const updatedImages = images.map((img) => (img.id === editingImage.id ? editingImage : img));
+    setImages(updatedImages);
+    updateGlobalImages(updatedImages);
+    setEditingImage(null);
     toast({
       title: "Imagen actualizada",
       description: "La imagen ha sido actualizada correctamente.",
-    })
-  }
+    });
+    await fetchAndSetImages();
+  };
 
-  const handleDeleteImage = (id: string) => {
-    const updatedImages = images.filter((img) => img.id !== id)
-    setImages(updatedImages)
-    updateGlobalImages(updatedImages)
-
+  const handleDeleteImage = async (id: string) => {
+    const imageToDelete = images.find((img) => img.id === id);
+    if (imageToDelete && imageToDelete.fileKey) {
+      const { error } = await supabase.storage.from('progress-images').remove([imageToDelete.fileKey]);
+      if (error) {
+        console.error('Error deleting image from Supabase:', error);
+        toast({
+          title: 'Error',
+          description: `No se pudo eliminar la imagen: ${error.message}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    const updatedImages = images.filter((img) => img.id !== id);
+    setImages(updatedImages);
+    updateGlobalImages(updatedImages);
     toast({
       title: "Imagen eliminada",
       description: "La imagen ha sido eliminada correctamente.",
-    })
-  }
+    });
+    await fetchAndSetImages();
+  };
 
-  const handleDeleteSelected = () => {
-    const updatedImages = images.filter((img) => !selectedImages.includes(img.id))
-    setImages(updatedImages)
-    updateGlobalImages(updatedImages)
-
-    setSelectedImages([])
+  const handleDeleteSelected = async () => {
+    const imagesToDelete = images.filter((img) => selectedImages.includes(img.id));
+    const fileKeys = imagesToDelete.map((img) => img.fileKey).filter(Boolean);
+    if (fileKeys.length > 0) {
+      const { error } = await supabase.storage.from('progress-images').remove(fileKeys);
+      if (error) {
+        console.error('Error deleting selected images from Supabase:', error);
+        toast({
+          title: 'Error',
+          description: `No se pudieron eliminar las imágenes: ${error.message}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    const updatedImages = images.filter((img) => !selectedImages.includes(img.id));
+    setImages(updatedImages);
+    updateGlobalImages(updatedImages);
+    setSelectedImages([]);
     toast({
       title: "Imágenes eliminadas",
       description: `${selectedImages.length} imágenes han sido eliminadas correctamente.`,
-    })
-  }
+    });
+    await fetchAndSetImages();
+  };
 
-  const handleToggleFeatured = (id: string) => {
-    const updatedImages = images.map((img) => (img.id === id ? { ...img, featured: !img.featured } : img))
-    setImages(updatedImages)
-    updateGlobalImages(updatedImages)
-
+  const handleToggleFeatured = async (id: string) => {
+    const updatedImages = images.map((img) =>
+      img.id === id ? { ...img, featured: !img.featured } : img
+    );
+    setImages(updatedImages);
+    updateGlobalImages(updatedImages);
     toast({
       title: "Estado actualizado",
       description: "El estado destacado de la imagen ha sido actualizado.",
-    })
-  }
+    });
+    await fetchAndSetImages();
+  };
 
   const handleSelectImage = (id: string, checked: boolean) => {
     if (checked) {
@@ -186,18 +242,18 @@ export default function ImageManagement() {
     }
   }
 
-  const handleSaveAllChanges = () => {
-    setIsLoading(true)
-    updateGlobalImages(images)
-
-    setTimeout(() => {
-      setIsLoading(false)
+  const handleSaveAllChanges = async () => {
+    setIsLoading(true);
+    updateGlobalImages(images);
+    setTimeout(async () => {
+      setIsLoading(false);
       toast({
         title: "Cambios guardados",
         description: "Todos los cambios han sido guardados correctamente.",
-      })
-    }, 1000)
-  }
+      });
+      await fetchAndSetImages();
+    }, 1000);
+  };
 
   const formatDate = (dateString: string) => {
     if (dateString.includes("-")) {
@@ -206,6 +262,17 @@ export default function ImageManagement() {
     }
     return dateString
   }
+
+  useEffect(() => {
+    const fetchAndSetImages = async () => {
+      const storageImages = await fetchImagesFromStorage();
+      if (storageImages.length > 0) {
+        setImages(storageImages);
+        updateGlobalImages(storageImages);
+      }
+    };
+    fetchAndSetImages();
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -227,7 +294,7 @@ export default function ImageManagement() {
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="image-file">Archivo de Imagen</Label>
-                  <Input id="image-file" type="file" accept="image/*" />
+                  <Input id="image-file" type="file" accept="image/*" onChange={handleFileChange} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="image-alt">Texto Alternativo</Label>
@@ -290,12 +357,12 @@ export default function ImageManagement() {
             </DialogContent>
           </Dialog>
           {selectedImages.length > 0 && (
-            <Button variant="destructive" onClick={handleDeleteSelected} className="gap-2">
+            <Button variant="destructive" onClick={async () => await handleDeleteSelected()} className="gap-2">
               <Trash className="h-4 w-4" />
               Eliminar Seleccionadas ({selectedImages.length})
             </Button>
           )}
-          <Button onClick={handleSaveAllChanges} disabled={isLoading} className="gap-2">
+          <Button onClick={async () => await handleSaveAllChanges()} disabled={isLoading} className="gap-2">
             <Save className="h-4 w-4" />
             Guardar Cambios
           </Button>
@@ -362,7 +429,7 @@ export default function ImageManagement() {
                     </div>
                     {image.featured && <Badge className="absolute top-2 right-2 z-10 bg-yellow-500">Destacada</Badge>}
                     <Image
-                      src={image.src || "/placeholder.svg"}
+                      src={(image.src ? image.src + `?t=${Date.now()}` : "/placeholder.svg")}
                       alt={image.alt}
                       width={400}
                       height={300}
@@ -399,7 +466,7 @@ export default function ImageManagement() {
                         <div className="grid gap-4 py-4">
                           <div className="relative h-48 mb-2">
                             <Image
-                              src={editingImage.src || "/placeholder.svg"}
+                              src={(editingImage.src ? editingImage.src + `?t=${Date.now()}` : "/placeholder.svg")}
                               alt={editingImage.alt}
                               fill
                               className="object-contain rounded-md"
@@ -465,11 +532,11 @@ export default function ImageManagement() {
                         <Button variant="outline" onClick={() => setEditingImage(null)}>
                           Cancelar
                         </Button>
-                        <Button onClick={handleUpdateImage}>Guardar Cambios</Button>
+                        <Button onClick={async () => await handleUpdateImage()}>Guardar Cambios</Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
-                  <Button variant="ghost" size="sm" onClick={() => handleDeleteImage(image.id)}>
+                  <Button variant="ghost" size="sm" onClick={async () => await handleDeleteImage(image.id)}>
                     <Trash className="h-4 w-4 mr-1" />
                     Eliminar
                   </Button>
@@ -516,7 +583,7 @@ export default function ImageManagement() {
                       <TableCell>
                         <div className="relative h-16 w-16">
                           <Image
-                            src={image.src || "/placeholder.svg"}
+                            src={(image.src ? image.src + `?t=${Date.now()}` : "/placeholder.svg")}
                             alt={image.alt}
                             fill
                             className="object-cover rounded-md"
@@ -532,7 +599,7 @@ export default function ImageManagement() {
                       </TableCell>
                       <TableCell>{image.date}</TableCell>
                       <TableCell>
-                        <Checkbox checked={image.featured} onCheckedChange={() => handleToggleFeatured(image.id)} />
+                        <Checkbox checked={image.featured} onCheckedChange={async () => await handleToggleFeatured(image.id)} />
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -551,7 +618,7 @@ export default function ImageManagement() {
                                 <div className="grid gap-4 py-4">
                                   <div className="relative h-48 mb-2">
                                     <Image
-                                      src={editingImage.src || "/placeholder.svg"}
+                                      src={(editingImage.src ? editingImage.src + `?t=${Date.now()}` : "/placeholder.svg")}
                                       alt={editingImage.alt}
                                       fill
                                       className="object-contain rounded-md"
@@ -621,11 +688,11 @@ export default function ImageManagement() {
                                 <Button variant="outline" onClick={() => setEditingImage(null)}>
                                   Cancelar
                                 </Button>
-                                <Button onClick={handleUpdateImage}>Guardar Cambios</Button>
+                                <Button onClick={async () => await handleUpdateImage()}>Guardar Cambios</Button>
                               </DialogFooter>
                             </DialogContent>
                           </Dialog>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteImage(image.id)}>
+                          <Button variant="ghost" size="icon" onClick={async () => await handleDeleteImage(image.id)}>
                             <Trash className="h-4 w-4" />
                           </Button>
                         </div>
