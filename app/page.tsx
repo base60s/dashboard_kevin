@@ -100,6 +100,7 @@ export default function Dashboard() {
   const lastUpdated = useAdminDataStore((state) => state.lastUpdated)
   const fetchUnitData = useAdminDataStore((state) => state.fetchUnitData)
   const fetchProgressImages = useAdminDataStore((state) => state.fetchProgressImages)
+  const fetchKpiSettings = useAdminDataStore((state) => state.fetchKpiSettings)
   
   const isLoading = lastUpdated === null
 
@@ -160,9 +161,23 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    fetchKpiSettings();
     fetchUnitData();
     fetchProgressImages();
-  }, [fetchUnitData, fetchProgressImages]);
+  }, [fetchKpiSettings, fetchUnitData, fetchProgressImages]);
+
+  // Load visibleComponents from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('dashboard:visibleComponents');
+    if (stored) {
+      setVisibleComponents(JSON.parse(stored));
+    }
+  }, []);
+
+  // Save visibleComponents to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('dashboard:visibleComponents', JSON.stringify(visibleComponents));
+  }, [visibleComponents]);
 
   // Determine which dashboard options have data available
   const availableOptions = [
@@ -175,8 +190,10 @@ export default function Dashboard() {
     ...(progressImages.length > 0 ? ["imagenes"] : []),
   ];
 
-  // Show all KPIs, not just a subset
-  const allKpis = Array.isArray(kpiSettings) ? kpiSettings.filter((k: KPI) => k.visible) : [];
+  // Show only KPIs selected in visibleComponents
+  const selectedKpis = Array.isArray(kpiSettings)
+    ? kpiSettings.filter((k) => visibleComponents[`kpi-${k.id}`])
+    : [];
 
   return (
     <>
@@ -200,9 +217,9 @@ export default function Dashboard() {
 
       <main className="p-4">
         {/* KPIs Section */}
-        {allKpis.length > 0 && (
+        {selectedKpis.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {allKpis.map((kpi, index) => (
+            {selectedKpis.map((kpi, index) => (
               <Card key={kpi.id}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">{kpi.name}</CardTitle>
